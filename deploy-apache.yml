@@ -1,7 +1,7 @@
 - hosts: oc_client
   tasks:
   - block:
-      - name: Check if Project already exist or not
+      - name: Check if Project {{ project_name }} already exist or not
         shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc get project {{ project_name }}"
         register: oc_output
       - debug: var=oc_output.stdout_lines
