@@ -1,0 +1,53 @@
+- hosts: nodes
+  tasks:
+  - name: Check FQDN and DNS forward/reverse resolve
+    block:
+      - name: Fail if FQDN is not configured
+        fail:
+        when: ansible_hostname == ansible_fqdn
+
+      - name: Do dns lookup for fqdn
+        shell: "nslookup {{ ansible_fqdn }} | grep -v '#53' | grep Address: | awk {'print $2'}"
+        register: dnslookup_ip
+        changed_when: false
+
+      - debug: var=dnslookup_ip.stdout
+      - debug:
+          msg: ansible_fqdn:"{{ ansible_fqdn }}"
+      - debug:
+          msg: ansible_hostname:"{{ ansible_hostname }}"
+      - debug:
+          msg: "{{ ansible_default_ipv4.address }}"
+      - debug:
+          msg: ansible_nodename:"{{ ansible_nodename }}"
+
+      - name: Fail if host IP and dns lookup IP are not the same
+        fail:
+        when: ansible_default_ipv4.address != dnslookup_ip.stdout
+
+      - name: Do dns reverse lookup for local IP
+        shell: "nslookup {{ ansible_default_ipv4.address }} | grep 'name = ' | awk {' print $4'} | sed s/.$//g"
+        register: dnslookup_fqdn
+        changed_when: false
+
+      - name: Fail if hostname and dns reverse lookup name are not the same
+        fail:
+        when: ansible_fqdn != dnslookup_fqdn.stdout
+
+      - name: Get hostname from the host
+        shell: "hostname"
+        register: hostname_shell
+        changed_when: false
+
+      - name: Fail if hostname and ansible_fqdn are not the same
+        fail:
+        when: ansible_fqdn != hostname_shell.stdout
+
+      - name: Get hostname from /etc/hostname
+        shell: "cat /etc/hostname"
+        register: hostname_etc
+        changed_when: false
+
+      - name: Fail if /etc/hostname and ansible_fqdn are not the same
+        fail:
+        when: ansible_fqdn != hostname_etc.stdout
