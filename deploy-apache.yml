@@ -1,16 +1,47 @@
 - hosts: oc_client
   tasks:
+
+  - name: Check that all required variables are defined
+    fail:
+      msg: "Variable '{{ item }}' is not defined"
+    when: item not in vars
+    with_items:
+      - project_name
+      - application_template_name
+
   - block:
       - name: Check if Project {{ project_name }} already exist or not
-        shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc get project {{ project_name }}"
+        shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc get project {{ project_name }} | grep -o {{ project_name }}"
         register: oc_output
-      - debug: var=oc_output.stdout_lines
+        failed_when: false
+        changed_when: false
+      #- debug: var=oc_output.stdout_lines
+      #- debug: var=oc_output.stderr_lines
 
       - name: Fail if project already exist
         fail:
-        when: "'NotFound' not in oc_output.stdout"
+        when: project_name in oc_output.stdout_lines
 
-      - name: Create Project
+      - name: Check if the Application template {{ application_template_name }} already exist or not
+        shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc get template {{ application_template_name }} -n openshift | grep -o {{ application_template_name }}"
+        register: oc_output
+        failed_when: false
+        changed_when: false
+      #- debug: var=oc_output.stdout_lines
+      #- debug: var=oc_output.stderr_lines
+
+      - name: Fail if Application template does not exist in openshift NameSpace
+        fail:
+        when: application_template_name not in oc_output.stdout_lines
+
+      - name: Create the Project {{ project_name }}
         shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc new-project {{ project_name }}"
         register: oc_output
-      - debug: var=oc_output.stdout_lines
+      #- debug: var=oc_output
+
+      - name: Deploy the the application using Template {{ application_template_name }}
+        shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc new-app {{ application_template_name }} --allow-missing-images -n {{ project_name }}"
+        register: oc_output
+      - debug: var=oc_output
+
+    when: oc_username is not defined
