@@ -1,0 +1,30 @@
+- hosts: oc_client
+  tasks:
+
+  - name: Check that all required variables are defined
+    fail:
+      msg: "Variable '{{ item }}' is not defined"
+    when: item not in vars
+    with_items:
+      - project_name
+
+  - block:
+      - name: Get the route from the project
+        shell: "export KUBECONFIG=/etc/origin/master/admin.kubeconfig; oc login -u system:admin >/dev/null; oc get route -o=custom-columns='HOST:.spec.host' -n {{ project_name }} | grep -v HOST"
+        register: route_output
+        failed_when: false
+        changed_when: false
+      - debug: var=route_output.stdout_lines
+
+      - name: Check Application is live
+        uri:
+          url: "http://{{ route_output.stdout }}"
+          return_content: yes
+        register: healthz
+      #- debug: var=healthz.content
+
+      - name: Fail if required content is not in the output
+        fail:
+        when: "'Build a Apache' not in healthz.content"
+
+    when: oc_username is not defined
